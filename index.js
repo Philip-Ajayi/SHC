@@ -247,8 +247,8 @@ app.post('/api/send-user-broadcast', async (req, res) => {
     }
 
     const sendOps = users.map(u => {
-      const unsubscribeLink = `/unsubscribe/${u._id}`;
-      const unsubscribeDirect = `/api/unsubscribe/${u._id}`;
+      const unsubscribeLink = `https://summerhealingcampaign.org/unsubscribe/${u._id}`;
+      const unsubscribeDirect = `https://summerhealingcampaign.org/api/unsubscribe/${u._id}`;
       const html = `
         <p>Hello ${u.firstName},</p>
         ${customHtml}
