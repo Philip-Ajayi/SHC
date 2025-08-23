@@ -30,9 +30,14 @@ const userSchema = new mongoose.Schema({
   phone: String,
   email: { type: String, unique: true, required: true },
   address: String,
-  year: { 
-    type: Number, 
-    default: () => new Date().getFullYear() 
+  location: {
+    type: String,
+    required: true,
+    enum: ['New-York', 'Indiana', 'Maryland'] // ✅ only allow these values
+  },
+  year: {
+    type: Number,
+    default: () => new Date().getFullYear()
   },
   attendance: { type: [Number], default: [] },
   unsubscribed: { type: Boolean, default: false }
@@ -53,7 +58,16 @@ const transporter = nodemailer.createTransport({
 
 // User Registration
 app.post('/api/register', async (req, res) => {
-  const { firstName, lastName, phone, email, address, year } = req.body;
+  const { firstName, lastName, phone, email, address, location, year } = req.body;
+
+  const allowedLocations = ['New-York', 'Indiana', 'Maryland'];
+
+  // Validate location
+  if (!location || !allowedLocations.includes(location)) {
+    return res.status(400).json({
+      message: 'Invalid location. Please select New York, Indiana, or Maryland.'
+    });
+  }
 
   try {
     const existing = await User.findOne({ email });
@@ -61,7 +75,7 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ message: 'A user with this email already exists.' });
     }
 
-    const newUser = new User({ firstName, lastName, phone, email, address, year });
+    const newUser = new User({ firstName, lastName, phone, email, address, location, year });
     await newUser.save();
 
     const mailOptions = {
@@ -88,7 +102,6 @@ app.post('/api/register', async (req, res) => {
       `
     };
 
-
     try {
       await transporter.sendMail(mailOptions);
       console.log(`Registration email sent to ${email}`);
@@ -102,6 +115,7 @@ app.post('/api/register', async (req, res) => {
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
+
 
 // Attendance Management
 app.post('/api/mark-attendance', async (req, res) => {
@@ -164,21 +178,15 @@ app.post('/api/remove-attendance', async (req, res) => {
 });
 
 // Queries
-app.get('/api/attendance/:session/:year', async (req, res) => {
-  const { session, year } = req.params;
-  try {
-    const users = await User.find({ attendance: +session, year: +year });
-    res.status(200).json({ users });
-  } catch (err) {
-    console.error('Error fetching attendance:', err);
-    res.status(500).json({ message: 'Server error. Please try again.' });
-  }
-});
+// ✅ Get users by year (optionally by location)
+app.get('/api/users/:year/:location?', async (req, res) => {
+  const { year, location } = req.params;
+  const query = { year: +year };
 
-app.get('/api/users/:year', async (req, res) => {
-  const { year } = req.params;
+  if (location) query.location = location;
+
   try {
-    const users = await User.find({ year: +year });
+    const users = await User.find(query);
     if (!users.length) {
       return res.status(404).json({ message: `No users found for year ${year}.` });
     }
@@ -189,13 +197,34 @@ app.get('/api/users/:year', async (req, res) => {
   }
 });
 
-app.get('/api/users-no-attendance/:year', async (req, res) => {
-  const { year } = req.params;
+// ✅ Get users with NO attendance
+app.get('/api/users-no-attendance/:year/:location?', async (req, res) => {
+  const { year, location } = req.params;
+  const query = { year: +year, attendance: { $size: 0 } };
+
+  if (location) query.location = location;
+
   try {
-    const users = await User.find({ year: +year, attendance: { $size: 0 } });
+    const users = await User.find(query);
     res.status(200).json({ users });
   } catch (err) {
     console.error('Error fetching users with no attendance:', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+});
+
+// ✅ Get users by attendance session
+app.get('/api/attendance/:session/:year/:location?', async (req, res) => {
+  const { session, year, location } = req.params;
+  const query = { attendance: +session, year: +year };
+
+  if (location) query.location = location;
+
+  try {
+    const users = await User.find(query);
+    res.status(200).json({ users });
+  } catch (err) {
+    console.error('Error fetching attendance:', err);
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
