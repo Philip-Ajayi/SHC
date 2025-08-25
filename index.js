@@ -179,16 +179,17 @@ app.post('/api/remove-attendance', async (req, res) => {
 
 // Queries
 // ✅ Get users by year (optionally by location)
-app.get('/api/users/:year/:location?', async (req, res) => {
-  const { year, location } = req.params;
-  const query = { year: +year };
+app.get('/api/users/:year', async (req, res) => {
+  const { year } = req.params;
+  const { location } = req.query; // ✅ now reading location from query
 
+  const query = { year: +year };
   if (location) query.location = location;
 
   try {
     const users = await User.find(query);
     if (!users.length) {
-      return res.status(404).json({ message: `No users found for year ${year}.` });
+      return res.status(404).json({ message: `No users found for year ${year}${location ? ` and location ${location}` : ''}.` });
     }
     res.status(200).json({ users });
   } catch (err) {
@@ -197,11 +198,12 @@ app.get('/api/users/:year/:location?', async (req, res) => {
   }
 });
 
-// ✅ Get users with NO attendance
-app.get('/api/users-no-attendance/:year/:location?', async (req, res) => {
-  const { year, location } = req.params;
-  const query = { year: +year, attendance: { $size: 0 } };
+// ✅ Users with no attendance, with support for query param ?location=Maryland
+app.get('/api/users-no-attendance/:year', async (req, res) => {
+  const { year } = req.params;
+  const { location } = req.query; // ✅ Get location from query params
 
+  const query = { year: +year, attendance: { $size: 0 } };
   if (location) query.location = location;
 
   try {
@@ -213,11 +215,12 @@ app.get('/api/users-no-attendance/:year/:location?', async (req, res) => {
   }
 });
 
-// ✅ Get users by attendance session
-app.get('/api/attendance/:session/:year/:location?', async (req, res) => {
-  const { session, year, location } = req.params;
-  const query = { attendance: +session, year: +year };
+// ✅ Users by session & year, with support for ?location=Maryland
+app.get('/api/attendance/:session/:year', async (req, res) => {
+  const { session, year } = req.params;
+  const { location } = req.query; // ✅ Get location from query params
 
+  const query = { attendance: +session, year: +year };
   if (location) query.location = location;
 
   try {
@@ -228,6 +231,7 @@ app.get('/api/attendance/:session/:year/:location?', async (req, res) => {
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
+
 
 // Contact Form
 app.post('/api/contact', async (req, res) => {
