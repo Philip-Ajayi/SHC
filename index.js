@@ -32,7 +32,6 @@ const userSchema = new mongoose.Schema({
   address: String,
   location: {
     type: String,
-    required: true,
     enum: ['New-York', 'Indiana', 'Maryland'] // ✅ only allow these values
   },
   year: {
@@ -365,3 +364,4 @@ app.get('*', (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
