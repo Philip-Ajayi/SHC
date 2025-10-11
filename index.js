@@ -1,15 +1,18 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
 const Stripe = require('stripe');
 const path = require('path');
+const { Resend } = require('resend'); // ✅ Correct Resend import
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-
 const app = express();
 const port = process.env.PORT || 5000;
+
+// Initialize Resend
+const resend = new Resend('re_euN3FPGc_4gwRE3EjetMmH3QTbVekQiAk');
+const FROM_EMAIL = 'info@supernaturalcc.org';
 
 // Middleware
 app.use(express.json());
@@ -32,36 +35,20 @@ const userSchema = new mongoose.Schema({
   address: String,
   location: {
     type: String,
-    enum: ['New-York', 'Indiana', 'Maryland'] // ✅ only allow these values
+    enum: ['New-York', 'Indiana', 'Maryland']
   },
-  year: {
-    type: Number,
-    default: () => new Date().getFullYear()
-  },
+  year: { type: Number, default: () => new Date().getFullYear() },
   attendance: { type: [Number], default: [] },
   unsubscribed: { type: Boolean, default: false }
 });
 
 const User = mongoose.model('User', userSchema);
 
-// Nodemailer Setup (Zoho)
-const transporter = nodemailer.createTransport({
-  host: 'smtp.zoho.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.ZOHO_EMAIL,
-    pass: process.env.ZOHO_PASSWORD
-  }
-});
-
 // User Registration
 app.post('/api/register', async (req, res) => {
   const { firstName, lastName, phone, email, address, location, year } = req.body;
-
   const allowedLocations = ['New-York', 'Indiana', 'Maryland'];
 
-  // Validate location
   if (!location || !allowedLocations.includes(location)) {
     return res.status(400).json({
       message: 'Invalid location. Please select New York, Indiana, or Maryland.'
@@ -70,51 +57,37 @@ app.post('/api/register', async (req, res) => {
 
   try {
     const existing = await User.findOne({ email });
-    if (existing) {
-      return res.status(400).json({ message: 'A user with this email already exists.' });
-    }
+    if (existing) return res.status(400).json({ message: 'A user with this email already exists.' });
 
     const newUser = new User({ firstName, lastName, phone, email, address, location, year });
     await newUser.save();
 
-    const mailOptions = {
-      from: process.env.ZOHO_EMAIL,
+    // Send welcome email via Resend
+    await resend.emails.send({
+      from: FROM_EMAIL,
       to: email,
       subject: 'Registration Successful – SHC’25',
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <h2 style="color: #2c3e50;">Hello ${firstName},</h2>
           <p>Thank you for registering for <strong>SHC’25</strong>! We are excited to receive you.</p>
-          
-          <p>Please be sure to check the website for important information concerning the meeting.</p>
-          
-          <p>In the meantime, feel free to explore our website at 
-            <a href="https://supernaturalcc.org" target="_blank" style="color: #1e90ff;">Supernaturalcc.org</a> 
-            for resources that will bless you.
+          <p>Please check the website for important information concerning the meeting.</p>
+          <p>Explore our website at 
+            <a href="https://supernaturalcc.org" target="_blank" style="color: #1e90ff;">Supernaturalcc.org</a>
           </p>
-          
           <p style="margin-top: 30px;">See you this summer at the <strong>Summer Healing Campaign '25</strong>!</p>
-          
           <p>Looking forward to receiving you,</p>
           <p style="font-weight: bold;">Ayo Benson</p>
         </div>
       `
-    };
+    });
 
-    try {
-      await transporter.sendMail(mailOptions);
-      console.log(`Registration email sent to ${email}`);
-      res.status(200).json({ message: 'Registration successful and email sent!' });
-    } catch (mailErr) {
-      console.error('Error sending email:', mailErr);
-      res.status(200).json({ message: 'Registered, but failed to send confirmation email.' });
-    }
+    res.status(200).json({ message: 'Registration successful and email sent!' });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
-
 
 // Attendance Management
 app.post('/api/mark-attendance', async (req, res) => {
@@ -139,12 +112,9 @@ app.post('/api/mark-attendance', async (req, res) => {
 
 app.get('/api/check-attendance', async (req, res) => {
   const { email, session, year } = req.query;
-
   try {
     const user = await User.findOne({ email, year });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found for this year.' });
-    }
+    if (!user) return res.status(404).json({ message: 'User not found for this year.' });
 
     const attendanceMarked = user.attendance.includes(Number(session));
     res.status(200).json({ attendanceMarked });
@@ -153,7 +123,6 @@ app.get('/api/check-attendance', async (req, res) => {
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
-
 
 app.post('/api/remove-attendance', async (req, res) => {
   const { email, session, year } = req.body;
@@ -177,19 +146,16 @@ app.post('/api/remove-attendance', async (req, res) => {
 });
 
 // Queries
-// ✅ Get users by year (optionally by location)
 app.get('/api/users/:year', async (req, res) => {
   const { year } = req.params;
-  const { location } = req.query; // ✅ now reading location from query
+  const { location } = req.query;
 
   const query = { year: +year };
   if (location) query.location = location;
 
   try {
     const users = await User.find(query);
-    if (!users.length) {
-      return res.status(404).json({ message: `No users found for year ${year}${location ? ` and location ${location}` : ''}.` });
-    }
+    if (!users.length) return res.status(404).json({ message: `No users found for year ${year}${location ? ` and location ${location}` : ''}.` });
     res.status(200).json({ users });
   } catch (err) {
     console.error('Error fetching users:', err);
@@ -197,10 +163,9 @@ app.get('/api/users/:year', async (req, res) => {
   }
 });
 
-// ✅ Users with no attendance, with support for query param ?location=Maryland
 app.get('/api/users-no-attendance/:year', async (req, res) => {
   const { year } = req.params;
-  const { location } = req.query; // ✅ Get location from query params
+  const { location } = req.query;
 
   const query = { year: +year, attendance: { $size: 0 } };
   if (location) query.location = location;
@@ -214,10 +179,9 @@ app.get('/api/users-no-attendance/:year', async (req, res) => {
   }
 });
 
-// ✅ Users by session & year, with support for ?location=Maryland
 app.get('/api/attendance/:session/:year', async (req, res) => {
   const { session, year } = req.params;
-  const { location } = req.query; // ✅ Get location from query params
+  const { location } = req.query;
 
   const query = { attendance: +session, year: +year };
   if (location) query.location = location;
@@ -231,8 +195,7 @@ app.get('/api/attendance/:session/:year', async (req, res) => {
   }
 });
 
-
-// Contact Form
+// Contact Form via Resend
 app.post('/api/contact', async (req, res) => {
   const { name, email, phone, message, reason } = req.body;
 
@@ -256,8 +219,8 @@ app.post('/api/contact', async (req, res) => {
   }
 
   try {
-    await transporter.sendMail({
-      from: process.env.ZOHO_EMAIL,
+    await resend.emails.send({
+      from: FROM_EMAIL,
       to: process.env.CONTACT_RECEIVER_EMAIL,
       subject,
       text: body
@@ -269,35 +232,28 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// Broadcasts
+// Broadcasts via Resend
 app.post('/api/send-user-broadcast', async (req, res) => {
   const { customHtml } = req.body;
   try {
     const users = await User.find({ unsubscribed: false });
-    if (!users.length) {
-      return res.status(404).json({ message: 'No users to send the message to.' });
-    }
+    if (!users.length) return res.status(404).json({ message: 'No users to send the message to.' });
 
-    const sendOps = users.map(u => {
+    await Promise.all(users.map(u => {
       const unsubscribeLink = `https://summerhealingcampaign.org/unsubscribe/${u._id}`;
-      const unsubscribeDirect = `https://summerhealingcampaign.org/api/unsubscribe/${u._id}`;
-      const html = `
-        <p>Hello ${u.firstName},</p>
-        ${customHtml}
-        <hr />
-        <p><a href="${unsubscribeLink}">Unsubscribe</a></p>
-      `;
-      return transporter.sendMail({
-        from: process.env.ZOHO_EMAIL,
+      return resend.emails.send({
+        from: FROM_EMAIL,
         to: u.email,
         subject: 'Important Update',
-        html,
-        headers: {
-      'List-Unsubscribe': `<${unsubscribeDirect}>`
-    }
+        html: `
+          <p>Hello ${u.firstName},</p>
+          ${customHtml}
+          <hr />
+          <p><a href="${unsubscribeLink}">Unsubscribe</a></p>
+        `
       });
-    });
-    await Promise.all(sendOps);
+    }));
+
     res.status(200).json({ message: `Broadcast sent to ${users.length} users.` });
   } catch (err) {
     console.error('Error sending broadcast:', err);
@@ -305,7 +261,7 @@ app.post('/api/send-user-broadcast', async (req, res) => {
   }
 });
 
-// Unsubscribe endpoint (GET for link clicks)
+// Unsubscribe endpoint
 app.get('/api/unsubscribe/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -340,10 +296,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
       customer_email: email,
       success_url: `https://summerhealingcampaign.org/payment-success`,
       cancel_url: `https://summerhealingcampaign.org/payment-error`,
-      metadata: {
-        donor_name: name,
-        donation_type: type
-      }
+      metadata: { donor_name: name, donation_type: type }
     });
     res.json({ id: session.id });
   } catch (err) {
@@ -352,16 +305,11 @@ app.post('/api/create-checkout-session', async (req, res) => {
   }
 });
 
-// Serve static files from the "dist" directory
+// Serve static files
 app.use(express.static(path.join(__dirname, 'dist')));
-
-// Optional: fallback to index.html for Single Page Applications (e.g., React/Vue)
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
 });
 
 // Start Server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
+app.listen(port, () => console.log(`Server running on port ${port}`));
