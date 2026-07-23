@@ -66,16 +66,16 @@ app.post('/api/register', async (req, res) => {
     await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: 'Registration Successful – SHC’25',
+      subject: 'Registration Successful – SHC’26',
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <h2 style="color: #2c3e50;">Hello ${firstName},</h2>
-          <p>Thank you for registering for <strong>SHC’25</strong>! We are excited to receive you.</p>
+          <p>Thank you for registering for <strong>SHC’26</strong>! We are excited to receive you.</p>
           <p>Please check the website for important information concerning the meeting.</p>
           <p>Explore our website at 
             <a href="https://supernaturalcc.org" target="_blank" style="color: #1e90ff;">Supernaturalcc.org</a>
           </p>
-          <p style="margin-top: 30px;">See you this summer at the <strong>Summer Healing Campaign '25</strong>!</p>
+          <p style="margin-top: 30px;">See you this summer at the <strong>Summer Healing Campaign '26</strong>!</p>
           <p>Looking forward to receiving you,</p>
           <p style="font-weight: bold;">Ayo Benson</p>
         </div>
@@ -313,4 +313,3 @@ app.get('*', (req, res) => {
 
 // Start Server
 app.listen(port, () => console.log(`Server running on port ${port}`));
-
