@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema({
   address: String,
   location: {
     type: String,
-    enum: ['New-York', 'Indiana', 'Maryland']
+    enum: ['New-York', 'Indiana', 'Maryland', 'Rochester', 'Grenada', 'Nigeria', 'Cayman-Island']
   },
   year: { type: Number, default: () => new Date().getFullYear() },
   attendance: { type: [Number], default: [] },
@@ -47,11 +47,11 @@ const User = mongoose.model('User', userSchema);
 // User Registration
 app.post('/api/register', async (req, res) => {
   const { firstName, lastName, phone, email, address, location, year } = req.body;
-  const allowedLocations = ['New-York', 'Indiana', 'Maryland'];
+  const allowedLocations = ['New-York', 'Indiana', 'Maryland',  'Rochester', 'Nigeria', 'Grenada', 'Cayman-Island'];
 
   if (!location || !allowedLocations.includes(location)) {
     return res.status(400).json({
-      message: 'Invalid location. Please select New York, Indiana, or Maryland.'
+      message: 'Invalid location. Please select New York, Indiana, Rochester, Maryland, Cayman Island, Grenada or Nigeria.'
     });
   }
 
